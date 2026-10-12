@@ -1,56 +1,38 @@
-# Welcome to your Expo app 👋
+# Vibe
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Vibe is an Expo Router chat app backed by Firebase Authentication and Cloud Firestore. It keeps the existing `users/{uid}` and `chats/{chatId}/messages/{messageId}` data layout; no profile photos or Firebase Storage are required.
 
-## Get started
+## Run on Android with Expo Go
 
-1. Install dependencies
-
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```powershell
+npm install
+npx expo start
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Install Expo Go on the Android phone, connect the phone and development computer to the same network, then scan the QR code. If the network blocks LAN discovery, start with `npx expo start --tunnel`.
 
-### Other setup steps
+## Firestore setup
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+Review the complete rules in `firestore.rules` and publish them from Firebase Console > Firestore Database > Rules. These rules preserve existing documents, prevent deletes, require authenticated access, restrict conversations to their participants, and allow only the receiver to set a message's `seen` field to `true`.
 
-## Learn more
+The application adds these optional fields to existing documents:
 
-To learn more about developing your project with Expo, look at the following resources:
+- `users/{uid}`: `isOnline` and `lastSeen`
+- `chats/{chatId}`: `unreadCounts.{uid}`, `typing.{uid}`, and `typingUpdatedAt.{uid}`
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+Existing chats and messages are not migrated or deleted. Unread badges count messages sent after unread tracking is enabled; historical unread messages are marked read when their conversation is opened, but are not backfilled into the unread counter.
 
-## Join the community
+## Presence limitation
 
-Join our community of developers creating universal apps.
+Presence uses Firestore writes on foreground/background transitions and a 60-second foreground heartbeat. Firestore alone cannot reliably detect a process kill, network loss, or device power-off at the instant it occurs. Vibe treats a profile as online only while its last heartbeat is less than two minutes old. For authoritative disconnect handling, use Firebase Realtime Database presence with `onDisconnect()` and synchronize to Firestore using a trusted Cloud Function; that requires enabling Realtime Database and deploying the function.
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+## Two-account smoke test
+
+1. Create two accounts on separate Android devices or one Android device plus a browser session. Use unique email addresses.
+2. On account A, open New chat, choose account B, and send a message. Confirm the message appears with a sent tick and the chat preview appears in A's list.
+3. While B is signed in but not viewing the conversation, confirm the chat row shows an unread badge. Open that chat on B and confirm the badge clears and A's sent tick becomes `✓✓`.
+4. Leave the conversation open on B. Type from A without sending and verify B sees `typing...`; stop typing and confirm it clears. Background A to check its presence changes to last seen/offline after the heartbeat window.
+5. Open Profile, change the display name, save, and verify the other account sees it in the user list. Log out and verify Vibe returns to Login.
+6. Use Forgot Password with a registered email and follow the Firebase email link.
+
+Email/password sign-in must be enabled in Firebase Authentication, and Firebase's password-reset email template/action URL must be configured for the desired delivery flow.

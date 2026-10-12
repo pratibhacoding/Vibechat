@@ -1,0 +1,215 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isParticipant(chatData) {
+      return signedIn()
+        && chatData.get('participants', []).hasAny([request.auth.uid]);
+    }
+
+    function otherParticipant(chatData) {
+      return chatData.participants[0] == request.auth.uid
+        ? chatData.participants[1]
+        : chatData.participants[0];
+    }
+
+    function validParticipants(chatId, participants) {
+      return participants is list
+        && participants.size() == 2
+        && participants[0] is string
+        && participants[1] is string
+        && participants[0] < participants[1]
+        && participants.hasAny([request.auth.uid])
+        && chatId == participants[0] + '_' + participants[1];
+    }
+
+    match /users/{userId} {
+      allow read: if signedIn();
+
+      allow create: if signedIn()
+        && request.auth.uid == userId
+        && request.resource.data.keys().hasOnly([
+          'uid', 'name', 'email', 'isOnline', 'lastSeen', 'createdAt'
+        ])
+        && request.resource.data.uid == userId
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 60
+        && request.resource.data.isOnline == true
+        && request.resource.data.lastSeen == request.time
+        && request.resource.data.createdAt == request.time;
+
+      allow update: if signedIn()
+        && request.auth.uid == userId
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['name', 'isOnline', 'lastSeen'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 60
+        && (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name'])
+          || (
+            request.resource.data.isOnline is bool
+            && request.resource.data.lastSeen == request.time
+          )
+        );
+
+      allow delete: if false;
+    }
+
+    match /chats/{chatId} {
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['participants'])
+        && validParticipants(chatId, request.resource.data.participants);
+
+      allow read: if isParticipant(resource.data);
+      allow delete: if false;
+
+      allow update: if isParticipant(resource.data)
+        && request.resource.data.participants == resource.data.participants
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'lastMessage', 'updatedAt', 'unreadCounts', 'typing', 'typingUpdatedAt',
+          'lastMessageSenderId', 'lastMessageReceiverId', 'lastMessageSeen'
+        ])
+        && validChatMetadataUpdate(resource.data, request.resource.data);
+
+      match /messages/{messageId} {
+        function parentChat() {
+          return get(/databases/$(database)/documents/chats/$(chatId)).data;
+        }
+
+        function parentChatAfter() {
+          return getAfter(/databases/$(database)/documents/chats/$(chatId)).data;
+        }
+
+        function validAttachment(messageData) {
+          let attachmentKeys = [
+            'attachmentType', 'attachmentPath', 'attachmentName',
+            'attachmentContentType', 'attachmentSize'
+          ];
+          let documentTypes = [
+            'application/pdf', 'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'application/vnd.ms-powerpoint',
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            'text/plain', 'text/csv'
+          ];
+
+          return !messageData.keys().hasAny(attachmentKeys)
+            || (
+              messageData.keys().hasAll(attachmentKeys)
+              && messageData.attachmentType in ['image', 'document']
+              && messageData.attachmentPath == 'chats/' + chatId + '/' + messageId
+              && messageData.attachmentName is string
+              && messageData.attachmentName.size() > 0
+              && messageData.attachmentName.size() <= 255
+              && messageData.attachmentContentType is string
+              && messageData.attachmentSize is int
+              && messageData.attachmentSize >= 0
+              && messageData.attachmentSize <= 20 * 1024 * 1024
+              && (
+                (messageData.attachmentType == 'image'
+                  && messageData.attachmentContentType.matches('image/.*'))
+                || (messageData.attachmentType == 'document'
+                  && messageData.attachmentContentType in documentTypes)
+              )
+            );
+        }
+
+        allow read: if isParticipant(parentChat());
+
+        allow create: if isParticipant(parentChat())
+          && request.resource.data.keys().hasOnly([
+            'text', 'senderId', 'receiverId', 'createdAt', 'seen',
+            'attachmentType', 'attachmentPath', 'attachmentName',
+            'attachmentContentType', 'attachmentSize'
+          ])
+          && request.resource.data.senderId == request.auth.uid
+          && request.resource.data.receiverId == otherParticipant(parentChat())
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 4000
+          && validAttachment(request.resource.data)
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.seen == false
+          && parentChatAfter().lastMessage == request.resource.data.text
+          && parentChatAfter().updatedAt == request.time
+          && parentChatAfter().get('unreadCounts', {}).get(request.resource.data.receiverId, 0)
+            == parentChat().get('unreadCounts', {}).get(request.resource.data.receiverId, 0) + 1;
+
+        allow update: if isParticipant(parentChat())
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['seen'])
+          && resource.data.receiverId == request.auth.uid
+          && request.resource.data.senderId == resource.data.senderId
+          && request.resource.data.receiverId == resource.data.receiverId
+          && request.resource.data.text == resource.data.text
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.seen == true;
+
+        allow delete: if false;
+      }
+    }
+
+    function validChatMetadataUpdate(before, after) {
+      let changed = after.diff(before).affectedKeys();
+      let beforeUnread = before.get('unreadCounts', {});
+      let afterUnread = after.get('unreadCounts', {});
+      let beforeTyping = before.get('typing', {});
+      let afterTyping = after.get('typing', {});
+      let beforeTypingAt = before.get('typingUpdatedAt', {});
+      let afterTypingAt = after.get('typingUpdatedAt', {});
+      let previewReceiptChanged = changed.hasAny(['lastMessageSeen']);
+      let unreadChanged = afterUnread.diff(beforeUnread).affectedKeys();
+      let typingChanged = afterTyping.diff(beforeTyping).affectedKeys();
+      let typingAtChanged = afterTypingAt.diff(beforeTypingAt).affectedKeys();
+
+      return (
+        changed.size() == 0
+      ) || (
+        changed.hasOnly(['typing', 'typingUpdatedAt'])
+        && typingChanged.hasOnly([request.auth.uid])
+        && typingAtChanged.hasOnly([request.auth.uid])
+        && afterTyping.get(request.auth.uid, false) is bool
+        && afterTypingAt.get(request.auth.uid, request.time) == request.time
+      ) || (
+        changed.hasOnly(['unreadCounts', 'lastMessageSeen'])
+        && unreadChanged.hasOnly([request.auth.uid])
+        && afterUnread.get(request.auth.uid, -1) == 0
+        && (
+          !previewReceiptChanged
+          || (
+            before.get('lastMessageReceiverId', '') == request.auth.uid
+            && before.get('lastMessageSenderId', '') == otherParticipant(before)
+            && after.get('lastMessageSeen', false) == true
+          )
+        )
+      ) || (
+        changed.hasOnly([
+          'lastMessage', 'updatedAt', 'unreadCounts', 'typing', 'typingUpdatedAt',
+          'lastMessageSenderId', 'lastMessageReceiverId', 'lastMessageSeen'
+        ])
+        && after.get('lastMessage', '') is string
+        && after.lastMessage.size() > 0
+        && after.lastMessage.size() <= 4000
+        && after.updatedAt == request.time
+        && after.lastMessageSenderId == request.auth.uid
+        && after.lastMessageReceiverId == otherParticipant(before)
+        && after.lastMessageSeen == false
+        && unreadChanged.hasOnly([otherParticipant(before)])
+        && afterUnread.get(otherParticipant(before), 0)
+          == beforeUnread.get(otherParticipant(before), 0) + 1
+        && typingChanged.hasOnly([request.auth.uid])
+        && typingAtChanged.hasOnly([request.auth.uid])
+        && afterTyping.get(request.auth.uid, false) == false
+        && afterTypingAt.get(request.auth.uid, request.time) == request.time
+      );
+    }
+  }
+}

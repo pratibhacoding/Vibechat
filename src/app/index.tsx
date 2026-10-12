@@ -1,98 +1,217 @@
-import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
+import { useState } from 'react';
+
+import { StatusBar } from 'expo-status-bar';
+import {
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { router } from 'expo-router';
 
-function getDevMenuHint() {
-  if (Platform.OS === 'web') {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
-  }
-  if (Device.isDevice) {
-    return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
-    );
-  }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+
+import { VibeAuthField, VibeBrand, VibePrimaryButton } from '../components/vibe-ui';
+import { VibeColors } from '../constants/theme';
+import { auth } from '../firebase';
+
+export default function LoginScreen() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [passwordVisible, setPasswordVisible] = useState(false);
+
+  const handleLogin = async () => {
+    const cleanEmail = email.trim();
+
+    if (!cleanEmail || !password) {
+      Alert.alert('Error', 'Please enter email and password.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await signInWithEmailAndPassword(auth, cleanEmail, password);
+      router.replace('/chats');
+    } catch (error: any) {
+      console.log('Login Error:', error);
+
+      if (error.code === 'auth/invalid-email') {
+        Alert.alert('Error', 'Please enter a valid email address.');
+      } else if (
+        error.code === 'auth/invalid-credential' ||
+        error.code === 'auth/wrong-password' ||
+        error.code === 'auth/user-not-found'
+      ) {
+        Alert.alert('Login Failed', 'Incorrect email or password.');
+      } else if (error.code === 'auth/too-many-requests') {
+        Alert.alert('Try Again Later', 'Too many login attempts. Please try again later.');
+      } else {
+        Alert.alert('Login Failed', 'Unable to sign in. Please try again.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
-  );
-}
+    <SafeAreaView style={[styles.safeArea, Platform.OS === 'web' && styles.safeAreaWeb]} edges={['top', 'bottom']}>
+      <StatusBar style="dark" />
+      <KeyboardAvoidingView style={styles.keyboard} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+          <View style={[styles.content, Platform.OS === 'web' && styles.contentWeb]}>
+            <View style={styles.bgShapeOne} />
+            <View style={styles.bgShapeTwo} />
+            <View style={styles.hero}>
+              <VibeBrand />
+            </View>
 
-export default function HomeScreen() {
-  return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
-          </ThemedText>
-        </ThemedView>
+            <View style={styles.card}>
+              <Text style={styles.title}>Welcome back</Text>
+              <Text style={styles.subtitle}>Connect with the people who matter.</Text>
 
-        <ThemedText type="code" style={styles.code}>
-          get started
-        </ThemedText>
+              <View style={styles.form}>
+                <VibeAuthField
+                  icon="mail"
+                  placeholder="Email address"
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoComplete="email"
+                  returnKeyType="next"
+                />
+                <VibeAuthField
+                  icon="lock"
+                  placeholder="Password"
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!passwordVisible}
+                  onToggleSecure={() => setPasswordVisible((visible) => !visible)}
+                  autoComplete="current-password"
+                  returnKeyType="done"
+                />
 
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
-          />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
-        </ThemedView>
+                <TouchableOpacity style={styles.forgotButton} onPress={() => router.push('/forgot-password')}>
+                  <Text style={styles.forgotText}>Forgot password?</Text>
+                </TouchableOpacity>
 
-        {Platform.OS === 'web' && <WebBadge />}
-      </SafeAreaView>
-    </ThemedView>
+                <VibePrimaryButton label="Sign In" onPress={handleLogin} loading={loading} />
+              </View>
+            </View>
+
+            <View style={styles.divider}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>or continue with</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            <View style={styles.signupContainer}>
+              <Text style={styles.signupText}>New to Vibe?</Text>
+              <TouchableOpacity onPress={() => router.push('/signup')}>
+                <Text style={styles.signupLink}>Create account</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    flexDirection: 'row',
-  },
   safeArea: {
     flex: 1,
-    paddingHorizontal: Spacing.four,
-    alignItems: 'center',
-    gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
+    backgroundColor: '#F4F1FF',
   },
-  heroSection: {
-    alignItems: 'center',
+  safeAreaWeb: {
+    backgroundColor: '#F4F1FF',
+  },
+  keyboard: { flex: 1 },
+  container: {
+    flexGrow: 1,
     justifyContent: 'center',
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
+    paddingHorizontal: 20,
+    paddingVertical: 24,
   },
-  title: {
-    textAlign: 'center',
+  content: {
+    width: '100%',
+    maxWidth: 440,
+    alignSelf: 'center',
+    position: 'relative',
+    paddingVertical: 8,
   },
-  code: {
-    textTransform: 'uppercase',
+  contentWeb: {
+    maxWidth: 420,
+    minHeight: '100%',
   },
-  stepContainer: {
-    gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
+  bgShapeOne: {
+    position: 'absolute',
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: 'rgba(167, 139, 250, 0.16)',
+    top: -32,
+    left: -34,
   },
+  bgShapeTwo: {
+    position: 'absolute',
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    backgroundColor: 'rgba(147, 197, 253, 0.12)',
+    bottom: -42,
+    right: -54,
+  },
+  hero: {
+    alignItems: 'center',
+    marginBottom: 20,
+    zIndex: 2,
+  },
+  card: {
+    backgroundColor: 'rgba(255,255,255,0.94)',
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: '#E9E3FF',
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 18,
+    shadowColor: '#0F172A',
+    shadowOpacity: 0.06,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 3,
+    zIndex: 2,
+  },
+  title: { color: VibeColors.text, fontSize: 27, fontWeight: '800', letterSpacing: -0.6 },
+  subtitle: { color: VibeColors.textSecondary, fontSize: 14, lineHeight: 22, marginTop: 6 },
+  form: { gap: 14, marginTop: 20 },
+  forgotButton: { alignSelf: 'flex-end', minHeight: 30, justifyContent: 'center' },
+  forgotText: { color: VibeColors.primary, fontSize: 14, fontWeight: '700' },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 18,
+    marginBottom: 8,
+    zIndex: 2,
+  },
+  dividerLine: { flex: 1, height: 1, backgroundColor: '#E2E8F0' },
+  dividerText: { color: VibeColors.textSecondary, fontSize: 12, fontWeight: '600', textTransform: 'uppercase' },
+  signupContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 12,
+    zIndex: 2,
+  },
+  signupText: { color: VibeColors.textSecondary, fontSize: 14 },
+  signupLink: { color: VibeColors.primary, fontSize: 14, fontWeight: '700' },
 });

@@ -1,0 +1,40 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isChatParticipant(chatId) {
+      let chatPath = /databases/(default)/documents/chats/$(chatId);
+      return request.auth != null
+        && firestore.exists(chatPath)
+        && firestore.get(chatPath).data.participants.hasAny([request.auth.uid]);
+    }
+
+    function messageExists(chatId, messageId) {
+      return firestore.exists(
+        /databases/(default)/documents/chats/$(chatId)/messages/$(messageId)
+      );
+    }
+
+    function allowedAttachmentType() {
+      return request.resource.contentType.matches('image/.*')
+        || request.resource.contentType == 'application/pdf'
+        || request.resource.contentType == 'application/msword'
+        || request.resource.contentType == 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        || request.resource.contentType == 'application/vnd.ms-excel'
+        || request.resource.contentType == 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        || request.resource.contentType == 'application/vnd.ms-powerpoint'
+        || request.resource.contentType == 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+        || request.resource.contentType == 'text/plain'
+        || request.resource.contentType == 'text/csv';
+    }
+
+    match /chats/{chatId}/{messageId} {
+      allow read: if isChatParticipant(chatId);
+      allow create: if isChatParticipant(chatId)
+        && request.resource.size <= 20 * 1024 * 1024
+        && allowedAttachmentType();
+      allow delete: if isChatParticipant(chatId) && !messageExists(chatId, messageId);
+      allow update: if false;
+    }
+  }
+}
