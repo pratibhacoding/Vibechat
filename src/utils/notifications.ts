@@ -1,5 +1,6 @@
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
 import { isRunningInExpoGo } from 'expo';
 import { Platform } from 'react-native';
 
@@ -63,23 +64,35 @@ export async function registerForPushNotificationsAsync(userId?: string): Promis
         return null;
       }
 
-      const projectId = '5d9c6bc0-af70-4a47-a3d2-e06a52743735';
+      const projectId =
+        Constants.expoConfig?.extra?.eas?.projectId ??
+        Constants.easConfig?.projectId;
+
+      if (!projectId) {
+        console.warn(
+          '[notifications] EAS projectId not found in app config. Ensure extra.eas.projectId is defined in app.json.'
+        );
+        return null;
+      }
+
       const pushTokenData = await Notifications.getExpoPushTokenAsync({ projectId });
-      token = pushTokenData.data;
+      token = pushTokenData?.data ?? null;
 
       // Save token in Supabase push_tokens table linked to auth.uid()
       if (userId && token) {
-        try {
-          await supabase.from('push_tokens').upsert(
-            {
-              user_id: userId,
-              token: token,
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: 'user_id,token' }
-          );
-        } catch (dbErr) {
-          console.warn('Could not save push token to Supabase:', dbErr);
+        const { error: upsertError } = await supabase.from('push_tokens').upsert(
+          {
+            user_id: userId,
+            token: token,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'user_id,token' }
+        );
+
+        if (upsertError) {
+          console.warn('[notifications] Failed to save push token to Supabase:', upsertError.message, upsertError);
+        } else {
+          console.log('[notifications] Push token saved to Supabase successfully.');
         }
       }
     } else {
@@ -90,6 +103,35 @@ export async function registerForPushNotificationsAsync(userId?: string): Promis
   }
 
   return token;
+}
+
+/**
+ * Displays an immediate local notification banner and sound on the device.
+ * 100% Firebase-free and compatible with Expo SDK 57 and Supabase.
+ */
+export async function displayLocalNotification({
+  title,
+  body,
+  data,
+}: {
+  title: string;
+  body: string;
+  data?: Record<string, unknown>;
+}): Promise<void> {
+  try {
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title,
+        body,
+        data: data || {},
+        sound: 'default',
+        priority: Notifications.AndroidNotificationPriority.HIGH,
+      },
+      trigger: null,
+    });
+  } catch (err) {
+    console.warn('Could not display local notification:', err);
+  }
 }
 
 /**
