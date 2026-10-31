@@ -3,5 +3,18 @@
     "source.fixAll": "explicit",
     "source.organizeImports": "explicit",
     "source.sortMembers": "explicit"
-  }
+  },
+  "json.schemas": [
+    {
+      "fileMatch": ["/eas.json"],
+      "url": "./.vscode/schemas/eas.json"
+    },
+    {
+      "fileMatch": ["/app.json"],
+      "url": "./.vscode/schemas/expo-xdl.json"
+    }
+  ],
+  "deno.enablePaths": [
+    "supabase/functions"
+  ]
 }

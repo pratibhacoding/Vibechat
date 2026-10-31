@@ -1,6 +1,6 @@
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-import { VibeColors } from '../constants/theme';
+import { useAppTheme } from '../context/theme-context';
 import { VibeIcon } from './vibe-ui';
 
 export function EmptyState({
@@ -14,15 +14,17 @@ export function EmptyState({
   actionLabel?: string;
   onAction?: () => void;
 }) {
+  const { colors } = useAppTheme();
+
   return (
-    <View style={styles.container}>
-      <View style={styles.iconWrap}>
-        <VibeIcon name="message" color={VibeColors.primary} size={28} />
+    <View style={[styles.container, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <View style={[styles.iconWrap, { backgroundColor: colors.surfaceSubtle }]}>
+        <VibeIcon name="message" color={colors.primary} size={28} />
       </View>
-      <Text style={styles.title}>{title}</Text>
-      <Text style={styles.description}>{description}</Text>
+      <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
+      <Text style={[styles.description, { color: colors.textSecondary }]}>{description}</Text>
       {actionLabel && onAction && (
-        <TouchableOpacity style={styles.button} onPress={onAction} activeOpacity={0.8}>
+        <TouchableOpacity style={[styles.button, { backgroundColor: colors.primary }]} onPress={onAction} activeOpacity={0.8}>
           <Text style={styles.buttonText}>{actionLabel}</Text>
         </TouchableOpacity>
       )}
@@ -36,16 +38,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 34,
     paddingHorizontal: 28,
-    backgroundColor: 'rgba(255,255,255,0.75)',
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: '#F0E7FF',
   },
   iconWrap: {
     width: 78,
     height: 78,
     borderRadius: 24,
-    backgroundColor: '#F5F3FF',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 18,
@@ -55,13 +54,11 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 8 },
   },
   title: {
-    color: VibeColors.text,
     fontSize: 20,
     fontWeight: '700',
     textAlign: 'center',
   },
   description: {
-    color: VibeColors.textSecondary,
     fontSize: 14,
     lineHeight: 22,
     textAlign: 'center',
@@ -72,7 +69,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 11,
     borderRadius: 14,
-    backgroundColor: VibeColors.primary,
     shadowColor: '#5B5CE6',
     shadowOpacity: 0.2,
     shadowRadius: 10,

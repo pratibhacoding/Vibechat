@@ -1,25 +1,25 @@
+import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
 import {
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { router } from 'expo-router';
-import { sendPasswordResetEmail } from 'firebase/auth';
-
 import { VibeAuthField, VibeBrand, VibeIconButton, VibePrimaryButton } from '../components/vibe-ui';
 import { VibeColors } from '../constants/theme';
-import { auth } from '../firebase';
+import { useAppTheme } from '../context/theme-context';
+import { supabase } from '../supabase';
 
 export default function ForgotPasswordScreen() {
+  const { colors, isDark } = useAppTheme();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -33,39 +33,44 @@ export default function ForgotPasswordScreen() {
 
     try {
       setLoading(true);
-      await sendPasswordResetEmail(auth, cleanEmail);
-      Alert.alert('Email Sent', 'Check your email for the password reset link.');
-      router.replace('/');
-    } catch (error: any) {
-      console.log('Reset Password Error:', error);
+      const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
+        redirectTo: 'myiosapp://reset-password',
+      });
 
-      if (error.code === 'auth/invalid-email') {
-        Alert.alert('Error', 'Please enter a valid email.');
-      } else {
-        Alert.alert('Error', 'Unable to send password reset email.');
+      if (error) {
+        throw error;
       }
+
+      Alert.alert(
+        'Email Sent',
+        'Check your inbox for the password reset link to set your new password.',
+        [{ text: 'OK', onPress: () => router.replace('/') }]
+      );
+    } catch (error: any) {
+      console.warn('Reset Password Error:', error);
+      Alert.alert('Error', error?.message || 'Unable to send password reset email.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-      <StatusBar style="dark" />
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
+      <StatusBar style={isDark ? 'light' : 'dark'} />
       <KeyboardAvoidingView style={styles.keyboard} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
           <View style={styles.content}>
             <View style={styles.navRow}>
-              <VibeIconButton name="arrowBack" label="Go back" onPress={() => router.back()} backgroundColor={VibeColors.surfaceSubtle} />
+              <VibeIconButton name="arrowBack" label="Go back" onPress={() => router.back()} backgroundColor={colors.surfaceSubtle} color={colors.text} />
             </View>
 
             <View style={styles.hero}>
               <VibeBrand compact tagline={false} />
             </View>
 
-            <View style={styles.card}>
-              <Text style={styles.title}>Reset your password</Text>
-              <Text style={styles.description}>Enter your email and we&apos;ll send a secure reset link.</Text>
+            <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={[styles.title, { color: colors.text }]}>Reset your password</Text>
+              <Text style={[styles.description, { color: colors.textSecondary }]}>Enter your email and we&apos;ll send a secure reset link.</Text>
 
               <View style={styles.form}>
                 <VibeAuthField icon="mail" placeholder="Email address" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoComplete="email" returnKeyType="done" />
@@ -74,7 +79,7 @@ export default function ForgotPasswordScreen() {
             </View>
 
             <TouchableOpacity style={styles.backToLogin} onPress={() => router.replace('/')}>
-              <Text style={styles.login}>Back to sign in</Text>
+              <Text style={[styles.login, { color: colors.primary }]}>Back to sign in</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -84,7 +89,7 @@ export default function ForgotPasswordScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: VibeColors.background },
+  safeArea: { flex: 1 },
   keyboard: { flex: 1 },
   container: {
     flexGrow: 1,

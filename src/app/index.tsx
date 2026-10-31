@@ -15,13 +15,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { router } from 'expo-router';
 
-import { signInWithEmailAndPassword } from 'firebase/auth';
-
 import { VibeAuthField, VibeBrand, VibePrimaryButton } from '../components/vibe-ui';
 import { VibeColors } from '../constants/theme';
-import { auth } from '../firebase';
+import { useAppTheme } from '../context/theme-context';
+import { supabase } from '../supabase';
 
 export default function LoginScreen() {
+  const { colors, isDark } = useAppTheme();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -37,23 +37,34 @@ export default function LoginScreen() {
 
     try {
       setLoading(true);
-      await signInWithEmailAndPassword(auth, cleanEmail, password);
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: cleanEmail,
+        password,
+      });
+
+      if (error) {
+        throw error;
+      }
+
       router.replace('/chats');
     } catch (error: any) {
       console.log('Login Error:', error);
 
-      if (error.code === 'auth/invalid-email') {
-        Alert.alert('Error', 'Please enter a valid email address.');
-      } else if (
-        error.code === 'auth/invalid-credential' ||
-        error.code === 'auth/wrong-password' ||
-        error.code === 'auth/user-not-found'
+      const msg = error.message?.toLowerCase() || '';
+      if (
+        msg.includes('invalid login credentials') ||
+        msg.includes('invalid credentials') ||
+        error.status === 400
       ) {
         Alert.alert('Login Failed', 'Incorrect email or password.');
-      } else if (error.code === 'auth/too-many-requests') {
+      } else if (msg.includes('email not confirmed')) {
+        Alert.alert('Login Failed', 'Please verify your email address before signing in.');
+      } else if (msg.includes('rate limit') || msg.includes('too many requests') || error.status === 429) {
         Alert.alert('Try Again Later', 'Too many login attempts. Please try again later.');
+      } else if (msg.includes('invalid email')) {
+        Alert.alert('Error', 'Please enter a valid email address.');
       } else {
-        Alert.alert('Login Failed', 'Unable to sign in. Please try again.');
+        Alert.alert('Login Failed', error.message || 'Unable to sign in. Please try again.');
       }
     } finally {
       setLoading(false);
@@ -61,8 +72,8 @@ export default function LoginScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.safeArea, Platform.OS === 'web' && styles.safeAreaWeb]} edges={['top', 'bottom']}>
-      <StatusBar style="dark" />
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }, Platform.OS === 'web' && styles.safeAreaWeb]} edges={['top', 'bottom']}>
+      <StatusBar style={isDark ? 'light' : 'dark'} />
       <KeyboardAvoidingView style={styles.keyboard} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
           <View style={[styles.content, Platform.OS === 'web' && styles.contentWeb]}>
@@ -72,9 +83,9 @@ export default function LoginScreen() {
               <VibeBrand />
             </View>
 
-            <View style={styles.card}>
-              <Text style={styles.title}>Welcome back</Text>
-              <Text style={styles.subtitle}>Connect with the people who matter.</Text>
+            <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={[styles.title, { color: colors.text }]}>Welcome back</Text>
+              <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Connect with the people who matter.</Text>
 
               <View style={styles.form}>
                 <VibeAuthField
@@ -99,7 +110,7 @@ export default function LoginScreen() {
                 />
 
                 <TouchableOpacity style={styles.forgotButton} onPress={() => router.push('/forgot-password')}>
-                  <Text style={styles.forgotText}>Forgot password?</Text>
+                  <Text style={[styles.forgotText, { color: colors.primary }]}>Forgot password?</Text>
                 </TouchableOpacity>
 
                 <VibePrimaryButton label="Sign In" onPress={handleLogin} loading={loading} />
@@ -107,15 +118,15 @@ export default function LoginScreen() {
             </View>
 
             <View style={styles.divider}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>or continue with</Text>
-              <View style={styles.dividerLine} />
+              <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+              <Text style={[styles.dividerText, { color: colors.textSecondary }]}>or continue with</Text>
+              <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
             </View>
 
             <View style={styles.signupContainer}>
-              <Text style={styles.signupText}>New to Vibe?</Text>
+              <Text style={[styles.signupText, { color: colors.textSecondary }]}>New to Vibe?</Text>
               <TouchableOpacity onPress={() => router.push('/signup')}>
-                <Text style={styles.signupLink}>Create account</Text>
+                <Text style={[styles.signupLink, { color: colors.primary }]}>Create account</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -128,7 +139,6 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#F4F1FF',
   },
   safeAreaWeb: {
     backgroundColor: '#F4F1FF',

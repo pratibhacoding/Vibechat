@@ -1,56 +1,136 @@
+import * as Notifications from 'expo-notifications';
+import { isRunningInExpoGo } from 'expo';
 import { Stack, useRouter, useSegments } from 'expo-router';
-import { onAuthStateChanged } from 'firebase/auth';
-import { doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, AppState, StyleSheet, View } from 'react-native';
 
+import { CallModal } from '../components/call-modal';
 import { VibeBrand } from '../components/vibe-ui';
 import { VibeColors } from '../constants/theme';
-import { auth, db } from '../firebase';
+import { CallProvider } from '../context/call-context';
+import { ThemeProvider, useAppTheme } from '../context/theme-context';
+import { supabase } from '../supabase';
+import { registerForPushNotificationsAsync } from '../utils/notifications';
 
-export default function RootLayout() {
+function RootLayoutContent() {
   const router = useRouter();
   const segments = useSegments();
+  const { colors, isDark } = useAppTheme();
   const [sessionReady, setSessionReady] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    return onAuthStateChanged(auth, (user) => {
-      setIsAuthenticated(Boolean(user));
-      setUserId(user?.uid ?? null);
-      setSessionReady(true);
-    });
-  }, []);
+    let isMounted = true;
 
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!isMounted) return;
+      const user = session?.user ?? null;
+      setIsAuthenticated(Boolean(user));
+      setUserId(user?.id ?? null);
+      setSessionReady(true);
+      if (user?.id) {
+        void registerForPushNotificationsAsync(user.id);
+      }
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!isMounted) return;
+      const user = session?.user ?? null;
+      setIsAuthenticated(Boolean(user));
+      setUserId(user?.id ?? null);
+      setSessionReady(true);
+      if (user?.id) {
+        void registerForPushNotificationsAsync(user.id);
+      }
+      if (event === 'PASSWORD_RECOVERY') {
+        router.push('/reset-password' as any);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, [router]);
+
+  // Handle notification response (tapping notification navigates to conversation)
+  useEffect(() => {
+    if (isRunningInExpoGo()) return;
+
+    try {
+      const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
+        const data = response.notification.request.content.data;
+        if (data?.senderId || data?.chatId) {
+          router.push({
+            pathname: '/chat',
+            params: {
+              uid: data.senderId as string,
+              isGroup: data.isGroup ? 'true' : 'false',
+              chatId: data.chatId as string,
+            },
+          });
+        }
+      });
+
+      return () => {
+        subscription.remove();
+      };
+    } catch (error) {
+      console.warn('Could not attach notification response listener:', error);
+    }
+  }, [router]);
+
+  // Ephemeral Realtime Presence + Persisted last_seen on app state transition
   const updatePresence = useCallback(async (uid: string, isOnline: boolean) => {
     try {
-      await updateDoc(doc(db, 'users', uid), {
-        isOnline,
-        lastSeen: serverTimestamp(),
-      });
+      await supabase
+        .from('profiles')
+        .update({
+          is_online: isOnline,
+          last_seen: new Date().toISOString(),
+        })
+        .eq('id', uid);
     } catch (error) {
-      console.warn('Presence update failed:', error);
+      console.warn('Supabase presence update failed:', error);
     }
   }, []);
 
   useEffect(() => {
     if (!userId) return;
 
-    let foreground = AppState.currentState === 'active';
-    void updatePresence(userId, foreground);
-    const heartbeat = setInterval(() => {
-      if (foreground) void updatePresence(userId, true);
-    }, 60000);
+    let isOnline = AppState.currentState === 'active';
+    void updatePresence(userId, isOnline);
+
+    const presenceChannel = supabase.channel(`presence_${userId}`, {
+      config: { presence: { key: userId } },
+    });
+
+    presenceChannel.subscribe(async (status) => {
+      if (status === 'SUBSCRIBED' && isOnline) {
+        await presenceChannel.track({ online_at: new Date().toISOString() });
+      }
+    });
+
     const subscription = AppState.addEventListener('change', (state) => {
-      foreground = state === 'active';
-      void updatePresence(userId, foreground);
+      const active = state === 'active';
+      isOnline = active;
+      void updatePresence(userId, active);
+
+      if (active) {
+        void presenceChannel.track({ online_at: new Date().toISOString() });
+      } else {
+        void presenceChannel.untrack();
+      }
     });
 
     return () => {
-      clearInterval(heartbeat);
       subscription.remove();
       void updatePresence(userId, false);
+      void presenceChannel.untrack();
+      supabase.removeChannel(presenceChannel);
     };
   }, [updatePresence, userId]);
 
@@ -58,7 +138,7 @@ export default function RootLayout() {
     if (!sessionReady) return;
 
     const rootRoute = segments[0];
-    const isPublicRoute = !rootRoute || ['signup', 'forgot-password'].includes(rootRoute);
+    const isPublicRoute = !rootRoute || ['signup', 'forgot-password', 'reset-password'].includes(rootRoute);
 
     if (isAuthenticated && isPublicRoute) {
       router.replace('/chats');
@@ -68,18 +148,31 @@ export default function RootLayout() {
   }, [isAuthenticated, router, segments, sessionReady]);
 
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="profile" />
+        <Stack.Screen name="calls" />
+        <Stack.Screen name="reset-password" />
       </Stack>
+      <CallModal />
       {!sessionReady && (
-        <View style={styles.loading}>
-          <View style={styles.glow} />
+        <View style={[styles.loading, { backgroundColor: colors.background }]}>
+          <View style={[styles.glow, { backgroundColor: isDark ? '#2E1065' : '#EDE9FE' }]} />
           <VibeBrand />
-          <ActivityIndicator size="small" color={VibeColors.primary} style={styles.spinner} />
+          <ActivityIndicator size="small" color={colors.primary} style={styles.spinner} />
         </View>
       )}
     </View>
+  );
+}
+
+export default function RootLayout() {
+  return (
+    <ThemeProvider>
+      <CallProvider>
+        <RootLayoutContent />
+      </CallProvider>
+    </ThemeProvider>
   );
 }
 

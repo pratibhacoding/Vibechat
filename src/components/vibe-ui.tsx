@@ -1,4 +1,6 @@
+import { Image } from 'expo-image';
 import { SymbolView } from 'expo-symbols';
+import { useState } from 'react';
 import {
     ActivityIndicator,
     StyleSheet,
@@ -27,6 +29,7 @@ type VibeIconName =
   | 'logout'
   | 'mail'
   | 'message'
+  | 'mic'
   | 'more'
   | 'person'
   | 'pin'
@@ -50,6 +53,7 @@ const iconNames: Record<VibeIconName, { ios: string; android: string }> = {
   logout: { ios: 'rectangle.portrait.and.arrow.right', android: 'logout' },
   mail: { ios: 'envelope', android: 'mail' },
   message: { ios: 'bubble.left.and.bubble.right', android: 'forum' },
+  mic: { ios: 'mic.fill', android: 'mic' },
   more: { ios: 'ellipsis', android: 'more_vert' },
   person: { ios: 'person.crop.circle', android: 'person' },
   pin: { ios: 'pin.fill', android: 'push_pin' },
@@ -111,11 +115,14 @@ export function VibeAvatar({
   name,
   size = 52,
   online = false,
+  photoURL,
 }: {
   name: string;
   size?: number;
   online?: boolean;
+  photoURL?: string | null;
 }) {
+  const [imageError, setImageError] = useState(false);
   const initial = name.trim().charAt(0).toUpperCase() || 'V';
   const indicatorSize = Math.max(12, Math.round(size * 0.25));
   const palette = ['#F5F3FF', '#FDF2F8', '#ECFDF5', '#FFF7ED', '#DBEAFE', '#F3E8FF'];
@@ -127,14 +134,27 @@ export function VibeAvatar({
   }
 
   const background = palette[Math.abs(hash) % palette.length];
+  const hasPhoto = Boolean(photoURL) && !imageError;
 
   return (
-    <View
-      accessible
-      accessibilityLabel={`${name || 'Vibe user'}${online ? ', online' : ''}`}
-      style={[styles.avatar, { width: size, height: size, borderRadius: size / 2, backgroundColor: background }]}
-    >
-      <Text style={[styles.avatarInitial, { fontSize: Math.round(size * 0.38) }]}>{initial}</Text>
+    <View style={{ width: size, height: size, position: 'relative' }}>
+      <View
+        accessible
+        accessibilityLabel={`${name || 'Vibe user'}${online ? ', online' : ''}`}
+        style={[styles.avatar, { width: size, height: size, borderRadius: size / 2, backgroundColor: background, overflow: 'hidden' }]}
+      >
+        {hasPhoto ? (
+          <Image
+            source={{ uri: photoURL! }}
+            style={{ width: size, height: size, borderRadius: size / 2 }}
+            contentFit="cover"
+            transition={200}
+            onError={() => setImageError(true)}
+          />
+        ) : (
+          <Text style={[styles.avatarInitial, { fontSize: Math.round(size * 0.38) }]}>{initial}</Text>
+        )}
+      </View>
       {online && (
         <View
           style={[

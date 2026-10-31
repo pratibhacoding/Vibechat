@@ -1,27 +1,26 @@
 import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
 import {
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { router } from 'expo-router';
 
-import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
-
+import { VibeColors } from '@/constants/theme';
 import { VibeAuthField, VibeBrand, VibePrimaryButton } from '../components/vibe-ui';
-import { VibeColors } from '../constants/theme';
-import { auth, db } from '../firebase';
+import { useAppTheme } from '../context/theme-context';
+import { supabase } from '../supabase';
 
 export default function SignupScreen() {
+  const { colors, isDark } = useAppTheme();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -54,33 +53,40 @@ export default function SignupScreen() {
     try {
       setLoading(true);
       const cleanEmail = email.trim().toLowerCase();
-      const userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, password);
-      const user = userCredential.user;
+      const fullName = name.trim();
 
-      await setDoc(doc(db, 'users', user.uid), {
-        uid: user.uid,
-        name: name.trim(),
+      const { data, error } = await supabase.auth.signUp({
         email: cleanEmail,
-        isOnline: true,
-        lastSeen: serverTimestamp(),
-        createdAt: serverTimestamp(),
+        password,
+        options: {
+          data: {
+            full_name: fullName,
+          },
+        },
       });
+
+      if (error) {
+        throw error;
+      }
 
       Alert.alert('Success', 'Account created successfully!');
       router.replace('/chats');
     } catch (error: any) {
       console.log('Signup Error:', error);
 
-      if (error.code === 'auth/email-already-in-use') {
+      const msg = error.message?.toLowerCase() || '';
+      if (
+        msg.includes('already registered') ||
+        msg.includes('already in use') ||
+        msg.includes('user already exists')
+      ) {
         Alert.alert('Error', 'This email is already registered');
-      } else if (error.code === 'auth/invalid-email') {
+      } else if (msg.includes('invalid email') || msg.includes('valid email')) {
         Alert.alert('Error', 'Please enter a valid email');
-      } else if (error.code === 'auth/weak-password') {
-        Alert.alert('Error', 'Password is too weak');
-      } else if (error.code === 'permission-denied') {
-        Alert.alert('Database Error', 'Firestore permission denied. Please check security rules.');
+      } else if (msg.includes('password') && (msg.includes('weak') || msg.includes('short') || msg.includes('least'))) {
+        Alert.alert('Error', error.message || 'Password is too weak');
       } else {
-        Alert.alert('Error', error.message);
+        Alert.alert('Error', error.message || 'Unable to create account. Please try again.');
       }
     } finally {
       setLoading(false);
@@ -88,8 +94,8 @@ export default function SignupScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-      <StatusBar style="dark" />
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
+      <StatusBar style={isDark ? 'light' : 'dark'} />
       <KeyboardAvoidingView style={styles.keyboard} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
           <View style={styles.content}>
@@ -97,9 +103,9 @@ export default function SignupScreen() {
               <VibeBrand compact tagline={false} />
             </View>
 
-            <View style={styles.card}>
-              <Text style={styles.title}>Create account</Text>
-              <Text style={styles.subtitle}>Join Vibe and start chatting.</Text>
+            <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={[styles.title, { color: colors.text }]}>Create account</Text>
+              <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Join Vibe and start chatting.</Text>
 
               <View style={styles.form}>
                 <VibeAuthField icon="person" placeholder="Full name" value={name} onChangeText={setName} autoCapitalize="words" autoComplete="name" returnKeyType="next" />
@@ -111,9 +117,9 @@ export default function SignupScreen() {
             </View>
 
             <View style={styles.loginContainer}>
-              <Text style={styles.normalText}>Already have an account?</Text>
+              <Text style={[styles.normalText, { color: colors.textSecondary }]}>Already have an account?</Text>
               <TouchableOpacity onPress={() => router.back()}>
-                <Text style={styles.loginText}>Sign in</Text>
+                <Text style={[styles.loginText, { color: colors.primary }]}>Sign in</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -124,7 +130,7 @@ export default function SignupScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: VibeColors.background },
+  safeArea: { flex: 1 },
   keyboard: { flex: 1 },
   container: {
     flexGrow: 1,
