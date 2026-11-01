@@ -1,0 +1,52 @@
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+
+# Sensitive credentials
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+*.jks
+
+# Logs
+*.log
+npm-debug.log*
+
+# Android generated files
+android/app/build/
+
+# iOS generated files
+ios/Pods/
+ios/build/
+
+# Windows
+Thumbs.db
+
+# OSX
+.DS_Store
+
+# Android/IntelliJ
+build/
+.idea
+.gradle
+local.properties
+*.iml
+*.hprof
+.cxx/
+
+# Generated inline modules
+app/src/main/java/inline/
+
+# Bundle artifacts
+*.jsbundle
