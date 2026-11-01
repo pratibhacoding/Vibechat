@@ -258,5 +258,5 @@ Vibechat/
 ## 👤 Author & Credits
 
 - **Developer**: Pratibha Kumari ([@pratibha1512](https://github.com/pratibha1512))
-- **Application**: VibeChat Android
+- **Application**: VibeChat Android 
 - **Package**: `com.pratibha1512.vibechat`

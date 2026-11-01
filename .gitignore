@@ -1,5 +1,4 @@
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
-
 # Dependencies
 node_modules/
 
@@ -8,21 +7,29 @@ node_modules/
 .env.*
 !.env.example
 
-# Expo & Build Artifacts
+# Expo
 .expo/
 dist/
 web-build/
 expo-env.d.ts
 
-# Android Build Outputs & Gradle
-build/
-.gradle/
-.kotlin/
+# Android Build Outputs
+android/.gradle/
+android/build/
+android/app/build/
+android/.cxx/
+android/local.properties
+
+# iOS Build Outputs
+ios/Pods/
+ios/build/
+
+# APK & App Bundles
 *.apk
 *.aab
 *.ap_
 
-# Keystores, Signing Keys & Certificates
+# Signing Keys & Certificates
 *.jks
 *.keystore
 *.p8
@@ -37,17 +44,15 @@ build/
 google-services.json
 GoogleService-Info.plist
 *service-account*.json
-firebase.json
 
 # Metro & Bundler
 .metro-health-check*
 
-# Debug & Execution Logs
+# Logs
 *.log
 npm-debug.*
 yarn-debug.*
 yarn-error.*
-.system_generated/
 
 # OS & Temporary Files
 .DS_Store
@@ -56,12 +61,9 @@ Thumbs.db
 *.orig.*
 *.swp
 
-# TypeScript & Cache
+# TypeScript Cache
 *.tsbuildinfo
 
-# Generated native directories
-/ios
-/android
-
-# Local Example/Reset Folders
+# Generated Files
+.system_generated/
 example/

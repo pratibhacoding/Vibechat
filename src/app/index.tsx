@@ -18,7 +18,7 @@ import { router } from 'expo-router';
 import { VibeAuthField, VibeBrand, VibePrimaryButton } from '../components/vibe-ui';
 import { VibeColors } from '../constants/theme';
 import { useAppTheme } from '../context/theme-context';
-import { supabase } from '../supabase';
+import { logSupabaseAuthFailure, supabase } from '../supabase';
 
 export default function LoginScreen() {
   const { colors, isDark } = useAppTheme();
@@ -48,7 +48,7 @@ export default function LoginScreen() {
 
       router.replace('/chats');
     } catch (error: any) {
-      console.log('Login Error:', error);
+      logSupabaseAuthFailure('signInWithPassword', error);
 
       const msg = error.message?.toLowerCase() || '';
       if (

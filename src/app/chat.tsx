@@ -84,6 +84,14 @@ type GroupMemberInfo = {
 const MAX_ATTACHMENT_SIZE = 25 * 1024 * 1024;
 const REACTION_EMOJIS = ['❤️', '👍', '😂', '😮', '😢'];
 
+function createVoiceStoragePath(chatId: string): string {
+  return `chats/${chatId}/audio/voice_${Date.now()}.m4a`;
+}
+
+function createVoiceFileName(): string {
+  return `voice-${Date.now()}.m4a`;
+}
+
 function formatDuration(seconds: number): string {
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
@@ -398,11 +406,13 @@ export default function ChatScreen() {
     }
   }, [isGroup, effectiveChatId]);
 
-  useEffect(() => {
-    if (isGroup && effectiveChatId) {
-      void loadGroupDetails();
-    }
-  }, [isGroup, effectiveChatId, loadGroupDetails]);
+  useFocusEffect(
+    useCallback(() => {
+      if (isGroup && effectiveChatId) {
+        void loadGroupDetails();
+      }
+    }, [isGroup, effectiveChatId, loadGroupDetails])
+  );
 
   // Load candidate users when adding group members
   useEffect(() => {
@@ -1004,7 +1014,7 @@ export default function ChatScreen() {
       const uri = audioRecorder.uri;
       if (!uri) throw new Error('Audio file missing');
 
-      const filePath = `chats/${effectiveChatId}/audio/voice_${Date.now()}.m4a`;
+      const filePath = createVoiceStoragePath(effectiveChatId);
       const uploadedVoice = await uploadFileFromUri(uri, filePath, 'audio/m4a');
 
       const nowIso = new Date().toISOString();
@@ -1015,7 +1025,7 @@ export default function ChatScreen() {
         message_type: 'audio',
         text: '🎤 Voice message',
         storage_path: uploadedVoice.path,
-        file_name: `voice-${Date.now()}.m4a`,
+        file_name: createVoiceFileName(),
         file_size: uploadedVoice.size,
         mime_type: 'audio/m4a',
         reply_to: replyingTo ? replyingTo : null,

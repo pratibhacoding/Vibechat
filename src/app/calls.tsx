@@ -1,5 +1,5 @@
 import { Feather, Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -170,9 +170,11 @@ export default function CallsScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    void fetchCalls();
-  }, [fetchCalls]);
+  useFocusEffect(
+    useCallback(() => {
+      void fetchCalls();
+    }, [fetchCalls])
+  );
 
   // Realtime subscription for call_records updates
   useEffect(() => {

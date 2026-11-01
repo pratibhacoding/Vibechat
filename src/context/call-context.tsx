@@ -48,8 +48,6 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }>({ name: 'User' });
 
   const sessionRef = useRef<CallSession | null>(null);
-  sessionRef.current = callSession;
-
   const durationTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const ringTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -64,6 +62,10 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
       ringTimeoutRef.current = null;
     }
   }, []);
+
+  useEffect(() => {
+    sessionRef.current = callSession;
+  }, [callSession]);
 
   // Fetch current user and profile
   useEffect(() => {

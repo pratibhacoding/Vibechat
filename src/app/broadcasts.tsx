@@ -1,11 +1,10 @@
 import { router, useFocusEffect } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   FlatList,
-  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -13,8 +12,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-
-import { VibeAvatar, VibeIcon } from '../components/vibe-ui';
 import { useAppTheme } from '../context/theme-context';
 import { supabase } from '../supabase';
 import {
@@ -37,7 +34,7 @@ export default function BroadcastsScreen() {
     });
   }, []);
 
-  const loadLists = useCallback(async () => {
+  const loadLists = async () => {
     if (!currentUser?.id) return;
     try {
       const data = await fetchBroadcastLists(currentUser.id);
@@ -47,21 +44,13 @@ export default function BroadcastsScreen() {
     } finally {
       setLoading(false);
     }
-  }, [currentUser?.id]);
+  };
 
-  useFocusEffect(
-    useCallback(() => {
-      if (currentUser?.id) {
-        void loadLists();
-      }
-    }, [currentUser?.id, loadLists])
-  );
-
-  useEffect(() => {
+  useFocusEffect(() => {
     if (currentUser?.id) {
       void loadLists();
     }
-  }, [currentUser?.id, loadLists]);
+  });
 
   const handleDeleteList = (list: BroadcastList) => {
     Alert.alert(

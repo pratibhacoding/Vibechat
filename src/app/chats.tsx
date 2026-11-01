@@ -230,7 +230,13 @@ export default function ChatsScreen() {
 
   // STEP 2: Safe Supabase Realtime for profiles with unique channel topic
   useEffect(() => {
-    void fetchProfiles();
+    let active = true;
+    const runFetch = async () => {
+      await fetchProfiles();
+      if (!active) return;
+    };
+
+    void runFetch();
 
     const channelTopic = `profiles_sub_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     const channel = supabase
@@ -246,6 +252,7 @@ export default function ChatsScreen() {
     channel.subscribe();
 
     return () => {
+      active = false;
       supabase.removeChannel(channel);
     };
   }, [fetchProfiles]);
@@ -439,7 +446,13 @@ export default function ChatsScreen() {
 
   // STEP 2: Safe Supabase Realtime for chats & chat_members
   useEffect(() => {
-    void fetchAllChats();
+    let active = true;
+    const runFetch = async () => {
+      await fetchAllChats();
+      if (!active) return;
+    };
+
+    void runFetch();
 
     const channelTopic = `chats_sub_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     const channel = supabase
@@ -462,6 +475,7 @@ export default function ChatsScreen() {
     channel.subscribe();
 
     return () => {
+      active = false;
       supabase.removeChannel(channel);
     };
   }, [fetchAllChats]);

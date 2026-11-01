@@ -17,7 +17,7 @@ import { router } from 'expo-router';
 import { VibeColors } from '@/constants/theme';
 import { VibeAuthField, VibeBrand, VibePrimaryButton } from '../components/vibe-ui';
 import { useAppTheme } from '../context/theme-context';
-import { supabase } from '../supabase';
+import { logSupabaseAuthFailure, supabase } from '../supabase';
 
 export default function SignupScreen() {
   const { colors, isDark } = useAppTheme();
@@ -72,7 +72,7 @@ export default function SignupScreen() {
       Alert.alert('Success', 'Account created successfully!');
       router.replace('/chats');
     } catch (error: any) {
-      console.log('Signup Error:', error);
+      logSupabaseAuthFailure('signUp', error);
 
       const msg = error.message?.toLowerCase() || '';
       if (

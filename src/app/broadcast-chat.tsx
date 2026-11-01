@@ -3,7 +3,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -93,7 +93,7 @@ export default function BroadcastChatScreen() {
   }, []);
 
   // Load broadcast list details and history
-  const loadData = useCallback(async () => {
+  const loadData = async () => {
     if (!id || !currentUser?.id) return;
     try {
       const data = await fetchBroadcastListById(currentUser.id, id);
@@ -108,21 +108,13 @@ export default function BroadcastChatScreen() {
     } finally {
       setLoading(false);
     }
-  }, [id, currentUser?.id]);
+  };
 
-  useFocusEffect(
-    useCallback(() => {
-      if (id && currentUser?.id) {
-        void loadData();
-      }
-    }, [id, currentUser?.id, loadData])
-  );
-
-  useEffect(() => {
+  useFocusEffect(() => {
     if (id && currentUser?.id) {
       void loadData();
     }
-  }, [id, currentUser?.id, loadData]);
+  });
 
   // Load potential contacts to add
   const loadContactsForAdd = async () => {

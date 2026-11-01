@@ -1,6 +1,6 @@
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -40,7 +40,7 @@ export default function NewBroadcastScreen() {
     });
   }, []);
 
-  const loadContacts = useCallback(async () => {
+  const loadContacts = async () => {
     if (!currentUser?.id) return;
     try {
       const { data, error } = await supabase
@@ -64,13 +64,13 @@ export default function NewBroadcastScreen() {
     } finally {
       setLoading(false);
     }
-  }, [currentUser?.id]);
+  };
 
-  useEffect(() => {
+  useFocusEffect(() => {
     if (currentUser?.id) {
       void loadContacts();
     }
-  }, [currentUser?.id, loadContacts]);
+  });
 
   const filteredContacts = useMemo(() => {
     const q = search.trim().toLowerCase();
